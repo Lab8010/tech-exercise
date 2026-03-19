@@ -82,6 +82,8 @@ git push
                 value: '<GIT_SERVER>'
               - name: GITLAB_GROUP_NAME
                 value: '<TEAM_NAME>'
+              - name: BUILD_NAMESPACE
+                value: '<TEAM_NAME>-ci-cd'
               - name: BISCUITS
                 value: 'jaffa-cakes🍪'
     ```
@@ -91,6 +93,7 @@ git push
     ```bash#test
     yq e '(.applications[] | (select(.name=="jenkins").values.deployment.env_vars[] | select(.name=="GITLAB_HOST")).value)|=env(GIT_SERVER)' -i /projects/tech-exercise/ubiquitous-journey/values-tooling.yaml
     yq e '(.applications[] | (select(.name=="jenkins").values.deployment.env_vars[] | select(.name=="GITLAB_GROUP_NAME")).value)|=env(TEAM_NAME)' -i /projects/tech-exercise/ubiquitous-journey/values-tooling.yaml
+    yq e '(.applications[] | (select(.name=="jenkins").values.deployment.env_vars[] | select(.name=="BUILD_NAMESPACE")).value)|=env(TEAM_NAME)+"-ci-cd"' -i /projects/tech-exercise/ubiquitous-journey/values-tooling.yaml
     ```
 
 2. Jenkins will push changes to our Helm chart to Nexus as part of the pipeline. Previously, we configured our App of Apps to pull from the PetBattle public chart repository, so we also need to update it. Change the `pet-battle/test/values.yaml` file to point to the Nexus chart repository deployed in OpenShift. To do this, update the `source` as shown below for the `pet-battle`:
@@ -161,11 +164,7 @@ git push
                   skipDefaultCheckout(true)
                 }
                 steps {
-                    sh '''
-                    git clone ${GIT_URL} pet-battle && cd pet-battle
-                    git checkout ${BRANCH_NAME}
-                    '''
-                    dir('pet-battle'){
+                    checkout scm
 
                     script {
                         env.VERSION = sh(returnStdout: true, script: "npm run version --silent").trim()
@@ -194,7 +193,6 @@ git push
                         curl -v -f -u ${NEXUS_CREDS} --upload-file ${PACKAGE} \
                             http://nexus:8081/repository/${NEXUS_REPO_NAME}/${APP_NAME}/${PACKAGE}
                     '''
-                  }
                 }
                 // 📰 Post steps go here
             }
