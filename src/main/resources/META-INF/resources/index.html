@@ -41,11 +41,46 @@
     .err { color: #dc2626; font-size: 0.875rem; margin-top: 0.5rem; }
     footer { margin-top: 2rem; font-size: 0.75rem; color: #71717a; line-height: 1.4; }
     footer a { color: #3b82f6; }
+    .upload {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .upload h2 { margin: 0 0 0.75rem; font-size: 1.1rem; }
+    .upload form { display: flex; flex-direction: column; gap: 0.65rem; max-width: 28rem; }
+    .upload label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; }
+    .upload input[type="text"] { padding: 0.45rem 0.5rem; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 1rem; }
+    .upload input[type="file"] { font-size: 0.875rem; }
+    .upload button[type="submit"] {
+      align-self: flex-start;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .upload button[type="submit"]:disabled { opacity: 0.5; cursor: wait; }
   </style>
 </head>
 <body>
   <h1>猫投票</h1>
   <p id="status" class="err" hidden></p>
+  <section class="upload" aria-labelledby="upload-heading">
+    <h2 id="upload-heading">猫を追加（画像アップロード）</h2>
+    <form id="uploadForm">
+      <label>名前
+        <input type="text" name="name" id="catName" required maxlength="120" placeholder="例: ちび" autocomplete="off">
+      </label>
+      <label>画像
+        <input type="file" name="image" id="catImage" accept="image/*" required>
+      </label>
+      <button type="submit" id="uploadSubmit">追加する</button>
+    </form>
+  </section>
   <div id="cats" class="grid" aria-live="polite"></div>
   <footer>
     サンプル写真は <a href="https://commons.wikimedia.org/" rel="noopener">Wikimedia Commons</a> より取得したものです（各ファイルのライセンスは Commons の該当ページを参照）。
@@ -53,6 +88,60 @@
   <script>
     const catsEl = document.getElementById('cats');
     const statusEl = document.getElementById('status');
+    const uploadForm = document.getElementById('uploadForm');
+    const uploadSubmit = document.getElementById('uploadSubmit');
+
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showErr('');
+      const name = document.getElementById('catName').value.trim();
+      const fileInput = document.getElementById('catImage');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        showErr('画像ファイルを選んでください。');
+        return;
+      }
+      const file = fileInput.files[0];
+      const contentType = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
+      uploadSubmit.disabled = true;
+      try {
+        const b64 = await readFileAsBase64(file);
+        const res = await fetch('/cats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            imageBase64: b64,
+            contentType: contentType
+          })
+        });
+        if (!res.ok) {
+          let msg = '追加に失敗しました（HTTP ' + res.status + '）';
+          try {
+            const j = await res.json();
+            if (j.error) msg = j.error;
+          } catch (ignore) { /* plain text or empty */ }
+          showErr(msg);
+          return;
+        }
+        uploadForm.reset();
+        await loadCats();
+      } finally {
+        uploadSubmit.disabled = false;
+      }
+    });
+
+    function readFileAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const s = reader.result;
+          const i = s.indexOf(',');
+          resolve(i >= 0 ? s.slice(i + 1) : s);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
 
     function showErr(msg) {
       statusEl.textContent = msg;

@@ -5,3 +5,7 @@
 /.idea
 *.iml
 /.vscode
+
+# アップロードされた画像（ディレクトリだけリポジトリに残す）
+/uploads/*
+!/uploads/.gitkeep
