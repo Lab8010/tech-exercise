@@ -1,0 +1,92 @@
+# GitLab CI — リポジトリ同梱の GitLab CE（例: http://localhost:8929）や自前 Omnibus 向け
+#
+# 想定フロー: mvn verify → コンテナイメージビルド（＋任意で GitLab Container Registry へ push）
+#            → 手動でローカル Podman デプロイ（専用 Runner 上のみ）
+#
+# 変数（GitLab の Settings → CI/CD → Variables などで設定）:
+#   PETBATTLE_ENABLE_DEPLOY=true … deploy_local ジョブをパイプラインに出す（手動実行）
+#   PETBATTLE_SKIP_DOCKER_IMAGE=true … イメージビルドジョブを無効化（DinD が使えない Runner 向け）
+#
+# Runner 例:
+#   - build/image: Docker executor + privileged（DinD 用）または Kaniko 等に差し替え
+#   - deploy: Shell executor + Podman + compose（同一演習マシン）、タグ petbattle-deploy
+#   - 同梱 GitLab 利用時は Runner の登録先 URL を http://localhost:8929/（またはホスト名）に
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=${CI_PROJECT_DIR}/.m2/repository"
+
+stages:
+  - build
+  - image
+  - deploy
+
+default:
+  interruptible: true
+
+cache:
+  key:
+    files:
+      - pom.xml
+  paths:
+    - .m2/repository
+
+maven_verify:
+  stage: build
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - mvn -B clean verify
+
+# DinD には通常 privileged Runner が必要。使えない場合は PETBATTLE_SKIP_DOCKER_IMAGE=true とし、
+# Shell Runner 上で podman build するジョブを別途定義する運用も可。
+container_image:
+  stage: image
+  image: docker:24-cli
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - |
+      for i in $(seq 1 90); do
+        docker info >/dev/null 2>&1 && break
+        sleep 1
+      done
+    - docker info
+  script:
+    - docker build -t petbattle-api:${CI_COMMIT_SHORT_SHA} -t petbattle-api:latest .
+    - |
+      if [ -n "${CI_REGISTRY:-}" ] && [ -n "${CI_REGISTRY_IMAGE:-}" ]; then
+        echo "$CI_JOB_TOKEN" | docker login -u gitlab-ci-token --password-stdin "$CI_REGISTRY"
+        docker tag petbattle-api:${CI_COMMIT_SHORT_SHA} "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+        docker tag petbattle-api:latest "${CI_REGISTRY_IMAGE}:latest"
+        docker push "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+        docker push "${CI_REGISTRY_IMAGE}:latest"
+      fi
+  rules:
+    - if: '$PETBATTLE_SKIP_DOCKER_IMAGE == "true"'
+      when: never
+    - when: on_success
+
+# 演習用 PC（Podman が使えるマシン）に Shell Runner を登録し、タグ petbattle-deploy を付与する。
+# PETBATTLE_ENABLE_DEPLOY=true のときだけジョブが現れ、手動で実行する。
+deploy_local:
+  stage: deploy
+  tags:
+    - petbattle-deploy
+  script:
+    - cd "$CI_PROJECT_DIR"
+    - chmod +x start_petbattle.sh stop_petbattle.sh 2>/dev/null || true
+    - ./start_petbattle.sh
+  rules:
+    - if: '$PETBATTLE_ENABLE_DEPLOY == "true"'
+      when: manual
+    - when: never

@@ -21,3 +21,37 @@ services:
       PETBATTLE_UPLOAD_DIR: /deployments/uploads
     volumes:
       - ./uploads:/deployments/uploads
+
+  # 演習用 GitLab CE（profile: gitlab）。初回起動は数分〜十数分かかることがあります。
+  gitlab:
+    profiles:
+      - gitlab
+    image: docker.io/gitlab/gitlab-ce:17.6.2-ce.0
+    hostname: gitlab
+    shm_size: "256m"
+    # external_url に :8929 を含めると、コンテナ内 nginx も 8929 で待ち受けるため 8929:8929 でマップする
+    ports:
+      - "8929:8929"
+      - "2222:22"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:8929'
+        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD}'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        puma['worker_processes'] = 2
+        sidekiq['max_concurrency'] = 8
+    volumes:
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8929/users/sign_in >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+volumes:
+  gitlab_config:
+  gitlab_logs:
+  gitlab_data:
