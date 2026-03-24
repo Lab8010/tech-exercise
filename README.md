@@ -1,51 +1,31 @@
-[![Markdown Rundoc Testsuite](https://github.com/rht-labs/tech-exercise/actions/workflows/run_tests.yaml/badge.svg)](https://github.com/rht-labs/tech-exercise/actions/workflows/run_tests.yaml)
+# tech-exercise — CI/CD 演習用（Podman 1 台完結）
 
-## TL500 Mono Repo
+CentOS Stream などのノート PC と **Podman** で完結する、**Quarkus 3.x（Java 17）** の「猫の投票 API」演習用リポジトリです。以前の OpenShift / Tekton / Helm 向け資産は `old_assets/` に退避しています。
 
-This monorepo holds the content for the TL500 (aka DO500). The structure is roughly as follows:
+## 構成
 
-```
-...
-├── README.md
-├── docs
-│   ├── 1-the-manual-menace
-│   ├── ...
-│   ├── facilitation
-│   └── slides
-├── pet-battle
-│   ├── stage
-│   └── test
-├── quick-starts
-│   ├── README.md
-│   ├── ...
-├── tekton
-│   ├── ...
-├── ubiquitous-journey
-    └── ...
-```
+- **API**: Quarkus REST + Hibernate ORM Panache + PostgreSQL
+- **コンテナ**: `Dockerfile`（マルチステージ）、`docker-compose.yml`（`db` + `api`）
+- **起動**: `podman-compose` 用 `start_petbattle.sh` / `stop_petbattle.sh`
+- **パイプライン例**: ルートの `Jenkinsfile`
 
-whereby
+## 手元での動かし方
 
-* `docs` - contains the student and teacher guides for the technical exercises as well as the classroom
-activities. The `slides/content` are written in markdown and automatically published to the site when pushed to main.
-* `pet-battle` - contains the application configs used by the tech exercise
-* `ubiquitous-journey` -  contains a lightweight fork of the rht-labs ci/cd stack
-* `tekton` - contains the OpenShift pipeline definitions used in the tech exercise.
-
-### 🏃‍♀️ Running the docs & slides site locally
-
-To launch the slides, ensure you have NodeJS installed or run it in a NodeJS container if you prefer.
+前提: Maven 3.9+（Java 17）、Podman、`podman-compose`。
 
 ```shell
-npm i -g docsify-cli@4.4.3
-docsify serve ./docs
+mvn clean package          # ビルド・テスト
+./start_petbattle.sh       # DB + API をバックグラウンド起動
+curl -s http://localhost:8080/cats
+curl -s -X POST http://localhost:8080/cats/1/vote
 ```
 
-* Open the browser to http://localhost:3000 to view the tech exercise.
-* Open the browser to http://localhost:3000/slides to view the slides.
+`podman ps` で `api` と `db` の 2 コンテナが動いていることを確認してください。
 
-## 🎃 Contribution
+## 演習のヒント
 
-Pull requests welcome 🎃. Please 🙏, review 👀 the [Contribution Guide](./CONTRIBUTING.md) to become a contributor.
+`src/main/java/com/example/petbattle/CatResource.java` の投票増分（既定 +10 / `down=true` で -10）を書き換え、Jenkins から `Jenkinsfile` のパイプラインを実行すると、デプロイ後の挙動変化を確認できます。
 
-Changes approved and pushed to main will automatically be published to the docs site.
+## 旧コンテンツ
+
+講義用ドキュメントは引き続き `docs/` にあります。Kubernetes / OpenShift 向けの Tekton・Helm・quick-starts 等は `old_assets/` を参照してください。
