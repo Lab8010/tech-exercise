@@ -41,6 +41,15 @@ maven_verify:
   image: maven:3.9-eclipse-temurin-17
   script:
     - mvn -B clean verify
+  artifacts:
+    when: on_success
+    expire_in: 1 week
+    paths:
+      - target/jacoco-report/
+    reports:
+      coverage_report:
+        coverage_format: jacoco
+        path: target/jacoco-report/jacoco.xml
 
 # DinD には通常 privileged Runner が必要。使えない場合は PETBATTLE_SKIP_DOCKER_IMAGE=true とし、
 # Shell Runner 上で podman build するジョブを別途定義する運用も可。
