@@ -5,6 +5,7 @@ CentOS Stream などのノート PC と **Podman** で完結する、**Quarkus 3
 ## 構成
 
 - **API**: Quarkus REST + Hibernate ORM Panache + PostgreSQL
+- **ブラウザ UI**: トップ `http://localhost:8080/` で猫の画像と投票（`＋票` / `−票`）
 - **コンテナ**: `Dockerfile`（マルチステージ）、`docker-compose.yml`（`db` + `api`）
 - **起動**: `podman-compose` 用 `start_petbattle.sh` / `stop_petbattle.sh`
 - **パイプライン例**: ルートの `Jenkinsfile`
@@ -16,6 +17,7 @@ CentOS Stream などのノート PC と **Podman** で完結する、**Quarkus 3
 ```shell
 mvn clean package          # ビルド・テスト
 ./start_petbattle.sh       # DB + API をバックグラウンド起動
+# ブラウザで http://localhost:8080/ を開く（画像＋投票）
 curl -s http://localhost:8080/cats
 curl -s -X POST http://localhost:8080/cats/1/vote
 ```

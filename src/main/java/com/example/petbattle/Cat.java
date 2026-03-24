@@ -14,4 +14,8 @@ public class Cat extends PanacheEntity {
 
     @Column(nullable = false)
     public int count;
+
+    /** ブラウザから参照する静的画像パス（例: {@code /images/cat1.jpg}） */
+    @Column(name = "image_path", nullable = false)
+    public String imagePath;
 }

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>猫投票</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; background: #f4f4f5; color: #18181b; }
+    body { margin: 0 auto; max-width: 960px; padding: 1.5rem; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; }
+    .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    article {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    article img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      background: #e4e4e7;
+    }
+    .body { padding: 0.75rem 1rem 1rem; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+    .body h2 { margin: 0; font-size: 1.1rem; }
+    .count { font-size: 0.9rem; color: #52525b; }
+    .actions { display: flex; gap: 0.5rem; margin-top: auto; flex-wrap: wrap; }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    button.up { background: #22c55e; color: #fff; }
+    button.down { background: #f97316; color: #fff; }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .err { color: #dc2626; font-size: 0.875rem; margin-top: 0.5rem; }
+    footer { margin-top: 2rem; font-size: 0.75rem; color: #71717a; line-height: 1.4; }
+    footer a { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <h1>猫投票</h1>
+  <p id="status" class="err" hidden></p>
+  <div id="cats" class="grid" aria-live="polite"></div>
+  <footer>
+    サンプル写真は <a href="https://commons.wikimedia.org/" rel="noopener">Wikimedia Commons</a> より取得したものです（各ファイルのライセンスは Commons の該当ページを参照）。
+  </footer>
+  <script>
+    const catsEl = document.getElementById('cats');
+    const statusEl = document.getElementById('status');
+
+    function showErr(msg) {
+      statusEl.textContent = msg;
+      statusEl.hidden = !msg;
+    }
+
+    async function vote(id, down) {
+      showErr('');
+      const q = down ? '?down=true' : '';
+      const res = await fetch('/cats/' + id + '/vote' + q, { method: 'POST' });
+      if (!res.ok) {
+        showErr('投票に失敗しました（HTTP ' + res.status + '）');
+        return;
+      }
+      await loadCats();
+    }
+
+    async function loadCats() {
+      showErr('');
+      catsEl.innerHTML = '';
+      const res = await fetch('/cats');
+      if (!res.ok) {
+        showErr('猫一覧の取得に失敗しました（HTTP ' + res.status + '）');
+        return;
+      }
+      const cats = await res.json();
+      for (const c of cats) {
+        const art = document.createElement('article');
+        art.innerHTML =
+          '<img src="' + c.imagePath + '" alt="" width="320" height="240" loading="lazy">' +
+          '<div class="body">' +
+          '<h2>' + escapeHtml(c.name) + '</h2>' +
+          '<p class="count">得票: <strong>' + Number(c.count) + '</strong></p>' +
+          '<div class="actions">' +
+          '<button type="button" class="up" data-id="' + c.id + '" data-down="0">＋票</button>' +
+          '<button type="button" class="down" data-id="' + c.id + '" data-down="1">−票</button>' +
+          '</div></div>';
+        catsEl.appendChild(art);
+      }
+      catsEl.querySelectorAll('button').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          const down = btn.getAttribute('data-down') === '1';
+          btn.disabled = true;
+          try {
+            await vote(id, down);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    loadCats();
+  </script>
+</body>
+</html>
